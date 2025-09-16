@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto GPS Location & Obstacle Detection System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0B2033 0%, #0B1828 25%, #243E3E 75%, #1E3041 100%);
+            min-height: 100vh;
+            color: #ffffff;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .go-back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, #0B2033, #1E3041);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 10000;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .go-back-btn:hover {
+            background: linear-gradient(135deg, #1E3041, #243E3E);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 25px 35px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+
+        .gps-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(39, 174, 96, 0.2);
+            border: 1px solid rgba(39, 174, 96, 0.3);
+            padding: 12px 20px;
+            border-radius: 25px;
+        }
+
+        .gps-pulse {
+            width: 16px;
+            height: 16px;
+            background: #27ae60;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 25px;
+            height: calc(100vh - 200px);
+        }
+
+        .navigation-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .route-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #ffffff;
+            font-size: 16px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .current-location {
+            background: rgba(39, 174, 96, 0.2) !important;
+            border-color: #27ae60 !important;
+            color: #27ae60 !important;
+            font-weight: 600;
+        }
+
+        .location-options {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .location-option-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .location-option-btn:hover {
+            background: rgba(52, 152, 219, 0.3);
+            color: white;
+            border-color: #3498db;
+            transform: translateY(-1px);
+        }
+
+        .location-option-btn.active {
+            background: rgba(39, 174, 96, 0.3);
+            color: white;
+            border-color: #27ae60;
+        }
+
+        .navigate-button {
+            background: linear-gradient(135deg, #0B2033, #1E3041);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            padding: 18px 30px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .navigate-button:hover {
+            background: linear-gradient(135deg, #1E3041, #243E3E);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .navigate-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .map-container {
+            flex: 1;
+            background: #1E3041;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            min-height: 500px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 15px;
+        }
+
+        .movement-status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(11, 32, 51, 0.9);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-moving {
+            background: rgba(39, 174, 96, 0.9) !important;
+            border-color: #27ae60 !important;
+        }
+
+        .status-stationary {
+            background: rgba(231, 76, 60, 0.9) !important;
+            border-color: #e74c3c !important;
+        }
+
+        .navigation-info {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: rgba(11, 32, 51, 0.95);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            min-width: 300px;
+            z-index: 1000;
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-instruction {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .instruction-icon {
+            font-size: 32px;
+            width: 50px;
+            text-align: center;
+        }
+
+        .instruction-details {
+            flex: 1;
+        }
+
+        .distance-large {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .instruction-text {
+            font-size: 16px;
+            margin-top: 5px;
+        }
+
+        .route-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .gps-details {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(11, 32, 51, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .lane-detection-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .lane-detection-panel h3 {
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .lane-simulator {
+            background: #1E3041;
+            border-radius: 12px;
+            height: 250px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .road-surface {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #243E3E 0%, #1E3041 100%);
+            position: relative;
+        }
+
+        .lane-divider {
+            position: absolute;
+            top: 0;
+            width: 3px;
+            height: 100%;
+            background: repeating-linear-gradient(
+                to bottom,
+                white 0px,
+                white 25px,
+                transparent 25px,
+                transparent 50px
+            );
+        }
+
+        .lane-divider:nth-child(1) { left: 33.33%; }
+        .lane-divider:nth-child(2) { left: 66.66%; }
+
+        .user-vehicle {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 70px;
+            background: #3498db;
+            border-radius: 8px;
+            transition: all 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            color: white;
+        }
+
+        .lane-status-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-indicator {
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .status-safe {
+            background: #27ae60;
+        }
+
+        .status-warning {
+            background: #e74c3c;
+            animation: flash 1s infinite;
+        }
+
+        @keyframes flash {
+            0%, 50% { opacity: 1; }
+            25%, 75% { opacity: 0.6; }
+        }
+
+        .gps-coordinates {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .obstacle-alerts {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .obstacle-alerts h3 {
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border-left: 4px solid #3498db;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .alert-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .alert-icon {
+            font-size: 24px;
+            width: 40px;
+            text-align: center;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .alert-distance {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .vibration-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #e74c3c;
+            color: white;
+            padding: 30px 50px;
+            border-radius: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+            animation: vibrationAlert 0.5s infinite;
+            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.3);
+        }
+
+        @keyframes vibrationAlert {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+            25% { transform: translate(-52%, -48%) rotate(1deg); }
+            75% { transform: translate(-48%, -52%) rotate(-1deg); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .pothole-stat { color: #e74c3c; }
+        .construction-stat { color: #f39c12; }
+
+        .situation-summary {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+
+        .analysis-time {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: normal;
+        }
+
+        .situation-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #ffffff;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #3498db;
+        }
+
+        .sensor-data {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sensor-header {
+            color: #ffffff;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .sensor-readings {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sensor-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .sensor-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .sensor-value {
+            font-weight: 600;
+            color: #ffffff;
+            font-family: monospace;
+        }
+
+        .sensor-value.active {
+            color: #27ae60;
+        }
+
+        .sensor-value.warning {
+            color: #e74c3c;
+        }
+
+        .map-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .map-control-btn {
+            background: rgba(11, 32, 51, 0.9);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .map-control-btn:hover {
+            background: rgba(30, 48, 65, 0.9);
+            transform: scale(1.05);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .custom-location-marker {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .custom-popup .leaflet-popup-content-wrapper {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background: rgba(11, 32, 51, 0.95);
+            color: white;
+        }
+
+        .custom-popup .leaflet-popup-tip {
+            background: rgba(11, 32, 51, 0.95);
+        }
+
+        .location-tracking-info {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            background: rgba(11, 32, 51, 0.9);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            z-index: 1000;
+            max-width: 300px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tracking-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .tracking-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .tracking-active {
+            background: #27ae60;
+        }
+
+        .tracking-searching {
+            background: #f39c12;
+        }
+
+        .distance-display {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .distance-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+
+        .distance-label {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 15px;
+        }
+
+        .route-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            font-size: 14px;
+        }
+
+        .route-detail-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .route-detail-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .route-detail-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .route-inputs {
+                grid-template-columns: 1fr;
+            }
+            
+            .location-tracking-info {
+                position: relative;
+                bottom: auto;
+                left: auto;
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="go-back-btn" onclick="window.location.href='Home.html'">GO BACK</button>
+
+    <div class="container">
+        <div class="header">
+            <h1>GPS Navigation & Route Detection System</h1>
+            <div class="gps-status">
+                <div class="gps-pulse"></div>
+                <span><strong>Location Active</strong> | Accuracy: <span id="gps-accuracy">±5m</span></span>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="navigation-panel">
+                <div class="route-inputs">
+                    <div class="input-group">
+                        <label for="from-location">From Location</label>
+                        <input type="text" id="from-location" placeholder="Enter starting location...">
+                        <div class="location-options">
+                            <button class="location-option-btn" onclick="useCurrentLocation()">
+                                Use Current Location
+                            </button>
+                            <button class="location-option-btn active" onclick="clearFromLocation()">
+                                Enter Manually
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="to-location">Destination</label>
+                        <input type="text" id="to-location" placeholder="Enter destination address...">
+                    </div>
+                </div>
+
+                <button class="navigate-button" onclick="startNavigation()">
+                    Calculate Route & Distance
+                </button>
+
+                <div class="map-container">
+                    <div id="map"></div>
+                    
+                    <!-- Movement Status -->
+                    <div class="movement-status status-stationary" id="movement-status">
+                        Ready for Navigation
+                    </div>
+                    
+                    <!-- Navigation Instructions -->
+                    <div class="navigation-info" id="navigation-info">
+                        <div class="nav-instruction">
+                            <div class="instruction-icon" id="nav-icon">🧭</div>
+                            <div class="instruction-details">
+                                <div class="distance-large" id="nav-distance">--</div>
+                                <div class="instruction-text" id="nav-instruction">Enter locations to calculate route</div>
+                            </div>
+                        </div>
+                        <div class="route-summary">
+                            <div class="summary-item">
+                                <div class="summary-value" id="eta-time">--</div>
+                                <div>ETA</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="summary-value" id="total-distance">--</div>
+                                <div>Distance</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="summary-value" id="current-speed-display">--</div>
+                                <div>Duration</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Location Details -->
+                    <div class="gps-details" id="gps-details">
+                        <strong>Route Status:</strong><br>
+                        From: <span id="current-lat">--</span><br>
+                        To: <span id="current-lng">--</span><br>
+                        Distance: <span id="current-alt">--</span><br>
+                        Duration: <span id="current-heading">--</span><br>
+                        Status: <span id="gps-speed">Ready</span>
+                    </div>
+
+                    <!-- Map Controls -->
+                    <div class="map-controls">
+                        <button class="map-control-btn" onclick="centerOnRoute()">Center Route</button>
+                        <button class="map-control-btn" onclick="toggleMapLayer()">Satellite View</button>
+                        <button class="map-control-btn" onclick="zoomIn()">Zoom In</button>
+                        <button class="map-control-btn" onclick="zoomOut()">Zoom Out</button>
+                    </div>
+                </div>
+
+                <!-- Distance Display Below Map -->
+                <div class="distance-display" id="distance-display" style="display: none;">
+                    <div class="distance-value" id="main-distance">-- km</div>
+                    <div class="distance-label">Total Distance</div>
+                    <div class="route-details">
+                        <div class="route-detail-item">
+                            <div class="route-detail-value" id="estimated-time">--</div>
+                            <div class="route-detail-label">Estimated Time</div>
+                        </div>
+                        <div class="route-detail-item">
+                            <div class="route-detail-value" id="route-type">--</div>
+                            <div class="route-detail-label">Route Type</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <div class="lane-detection-panel">
+                    <h3>Route Analysis</h3>
+                    
+                    <div class="lane-simulator">
+                        <div class="road-surface">
+                            <div class="lane-divider"></div>
+                            <div class="lane-divider"></div>
+                            <div class="user-vehicle" id="user-vehicle">CAR</div>
+                        </div>
+                    </div>
+
+                    <div class="lane-status-display">
+                        <span><strong>Route Status:</strong></span>
+                        <div class="status-indicator status-safe" id="lane-status">Ready</div>
+                    </div>
+
+                    <div class="gps-coordinates" id="detailed-gps">
+                        <strong>Route Information:</strong><br>
+                        Status: <span id="gps-position">Enter locations to begin</span><br>
+                        Distance: <span id="gps-course">--</span> | Duration: <span id="detailed-speed">--</span><br>
+                        Type: <span id="position-accuracy">--</span>
+                    </div>
+                </div>
+
+                <div class="obstacle-alerts">
+                    <h3>Route Conditions</h3>
+                    
+                    <!-- Current Situation Summary -->
+                    <div class="situation-summary" id="situation-summary">
+                        <div class="summary-header">
+                            <strong>Current Analysis</strong>
+                            <span class="analysis-time" id="analysis-time">Ready</span>
+                        </div>
+                        <div class="situation-details" id="situation-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Route Quality:</span>
+                                <span class="detail-value" id="road-quality">--</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Traffic Flow:</span>
+                                <span class="detail-value" id="traffic-flow">--</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Efficiency Score:</span>
+                                <span class="detail-value" id="safety-score">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert-item" id="obstacle-1">
+                        <div class="alert-icon">🚧</div>
+                        <div class="alert-content">
+                            <div class="alert-title">Construction Zones</div>
+                            <div class="alert-distance">Checking route...</div>
+                        </div>
+                    </div>
+
+                    <div class="alert-item" id="obstacle-2">
+                        <div class="alert-icon">🚦</div>
+                        <div class="alert-content">
+                            <div class="alert-title">Traffic Analysis</div>
+                            <div class="alert-distance">Loading traffic data...</div>
+                        </div>
+                    </div>
+
+                    <div class="alert-item" id="obstacle-3">
+                        <div class="alert-icon">🛣️</div>
+                        <div class="alert-content">
+                            <div class="alert-title">Road Conditions</div>
+                            <div class="alert-distance">Monitoring conditions...</div>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number pothole-stat" id="hazard-count">0</div>
+                            <div>Route Issues</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number construction-stat" id="traffic-level">--</div>
+                            <div>Traffic Level</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Real-time sensor data -->
+                    <div class="sensor-data" id="sensor-data">
+                        <div class="sensor-header">
+                            <strong>System Status</strong>
+                        </div>
+                        <div class="sensor-readings">
+                            <div class="sensor-item">
+                                <span class="sensor-label">Navigation:</span>
+                                <span class="sensor-value" id="accel-reading">Ready</span>
+                            </div>
+                            <div class="sensor-item">
+                                <span class="sensor-label">Route Accuracy:</span>
+                                <span class="sensor-value" id="gps-accuracy-reading">--</span>
+                            </div>
+                            <div class="sensor-item">
+                                <span class="sensor-label">System Status:</span>
+                                <span class="sensor-value" id="movement-pattern">Online</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="vibration-alert" id="vibration-alert">
+        ROUTE CALCULATION ERROR!<br>
+        <span style="font-size: 16px;">Please check your internet connection and try again</span>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        let map;
+        let fromPosition = null;
+        let toPosition = null;
+        let isNavigating = false;
+        let routeInfo = null;
+        let fromMarker = null;
+        let toMarker = null;
+        let routePolyline = null;
+        let currentMapLayer = 'street';
+
+        // Initialize OpenStreetMap
+        function initMap() {
+            // Initialize map with default location (World view)
+            map = L.map('map').setView([20.0, 0.0], 2);
+
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            console.log('Map initialized successfully');
+        }
+
+        function goBack() {
+            if (confirm('Are you sure you want to go back? This will clear all current route data.')) {
+                // Clear all data and reset the interface
+                clearRoute();
+                document.getElementById('from-location').value = '';
+                document.getElementById('to-location').value = '';
+                showLocationStatus('Navigation system reset', '#3498db');
+            }
+        }
+
+        function useCurrentLocation() {
+            if (navigator.geolocation) {
+                showLocationStatus('Getting your current location...', '#f39c12');
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        fromPosition = { lat: lat, lng: lng };
+                        
+                        // Reverse geocode to get address
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data && data.display_name) {
+                                    document.getElementById('from-location').value = data.display_name;
+                                } else {
+                                    document.getElementById('from-location').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                                }
+                                document.getElementById('from-location').className = 'current-location';
+                                
+                                // Update button states
+                                const buttons = document.querySelectorAll('.location-option-btn');
+                                buttons[0].classList.add('active');
+                                buttons[1].classList.remove('active');
+                                
+                                showLocationStatus('Current location set successfully', '#27ae60');
+                            })
+                            .catch(error => {
+                                document.getElementById('from-location').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                                document.getElementById('from-location').className = 'current-location';
+                                showLocationStatus('Location set (address lookup failed)', '#f39c12');
+                            });
+                    },
+                    (error) => {
+                        let errorMessage = 'Could not get your location: ';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Permission denied';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'Request timeout';
+                                break;
+                            default:
+                                errorMessage += 'Unknown error';
+                                break;
+                        }
+                        showLocationStatus(errorMessage, '#e74c3c');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            } else {
+                showLocationStatus('Geolocation not supported by this browser', '#e74c3c');
+            }
+        }
+
+        function clearFromLocation() {
+            const fromInput = document.getElementById('from-location');
+            const buttons = document.querySelectorAll('.location-option-btn');
+            
+            fromInput.value = '';
+            fromInput.className = '';
+            fromInput.placeholder = 'Enter starting location manually...';
+            fromInput.focus();
+            
+            buttons[0].classList.remove('active');
+            buttons[1].classList.add('active');
+            
+            fromPosition = null;
+        }
+
+        function startNavigation() {
+            const fromLocation = document.getElementById('from-location').value.trim();
+            const toLocation = document.getElementById('to-location').value.trim();
+            
+            if (!fromLocation) {
+                showLocationStatus('Please enter a starting location', '#e74c3c');
+                return;
+            }
+            
+            if (!toLocation) {
+                showLocationStatus('Please enter a destination', '#e74c3c');
+                return;
+            }
+
+            showLocationStatus('Calculating route and distance...', '#3498db');
+            
+            // Update status displays
+            document.getElementById('movement-status').textContent = 'Calculating Route...';
+            document.getElementById('lane-status').textContent = 'Processing';
+            document.getElementById('gps-position').textContent = 'Geocoding locations...';
+
+            // Geocode both locations
+            Promise.all([
+                geocodeLocation(fromLocation),
+                geocodeLocation(toLocation)
+            ]).then(([fromResult, toResult]) => {
+                if (fromResult && toResult) {
+                    fromPosition = fromResult;
+                    toPosition = toResult;
+                    
+                    calculateAndDisplayRoute();
+                } else {
+                    showLocationStatus('Could not find one or both locations', '#e74c3c');
+                }
+            }).catch(error => {
+                console.error('Geocoding error:', error);
+                showLocationStatus('Error finding locations. Please check addresses.', '#e74c3c');
+            });
+        }
+
+        function geocodeLocation(address) {
+            // If fromPosition is already set (from current location), use it
+            if (address === document.getElementById('from-location').value && fromPosition) {
+                return Promise.resolve(fromPosition);
+            }
+            
+            return fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        return {
+                            lat: parseFloat(data[0].lat),
+                            lng: parseFloat(data[0].lon),
+                            name: data[0].display_name
+                        };
+                    }
+                    return null;
+                });
+        }
+
+        function calculateAndDisplayRoute() {
+            // Clear existing markers and routes
+            clearRoute();
+            
+            // Add markers for start and end points
+            fromMarker = L.marker([fromPosition.lat, fromPosition.lng])
+                .addTo(map)
+                .bindPopup('Start: ' + (fromPosition.name || 'Starting Location'))
+                .openPopup();
+            
+            toMarker = L.marker([toPosition.lat, toPosition.lng])
+                .addTo(map)
+                .bindPopup('Destination: ' + (toPosition.name || 'Destination'));
+
+            // Calculate straight-line distance
+            const straightDistance = calculateDistance(fromPosition, toPosition);
+            const distanceKm = (straightDistance / 1000).toFixed(2);
+            
+            // Try to get routing data
+            const routingUrl = `https://router.project-osrm.org/route/v1/driving/${fromPosition.lng},${fromPosition.lat};${toPosition.lng},${toPosition.lat}?overview=full&geometries=geojson`;
+            
+            fetch(routingUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        routeInfo = {
+                            distance: route.distance,
+                            duration: route.duration,
+                            coordinates: route.geometry.coordinates
+                        };
+                        
+                        // Draw route on map
+                        const latLngs = routeInfo.coordinates.map(coord => [coord[1], coord[0]]);
+                        routePolyline = L.polyline(latLngs, {
+                            color: '#3498db',
+                            weight: 5,
+                            opacity: 0.8
+                        }).addTo(map);
+                        
+                        // Fit map to show entire route
+                        const group = new L.featureGroup([fromMarker, toMarker, routePolyline]);
+                        map.fitBounds(group.getBounds().pad(0.1));
+                        
+                        // Update displays with route data
+                        updateRouteDisplays(route.distance, route.duration, 'Driving Route');
+                        
+                    } else {
+                        throw new Error('No route found');
+                    }
+                })
+                .catch(error => {
+                    console.log('Routing failed, using straight line:', error);
+                    
+                    // Fallback: draw straight line
+                    routePolyline = L.polyline([
+                        [fromPosition.lat, fromPosition.lng],
+                        [toPosition.lat, toPosition.lng]
+                    ], {
+                        color: '#e74c3c',
+                        weight: 4,
+                        opacity: 0.8,
+                        dashArray: '10, 10'
+                    }).addTo(map);
+                    
+                    // Fit map to show both points
+                    const group = new L.featureGroup([fromMarker, toMarker, routePolyline]);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                    
+                    // Use straight-line distance and estimated time
+                    const estimatedDuration = (straightDistance / 1000) / 50 * 3600; // Assume 50 km/h average
+                    updateRouteDisplays(straightDistance, estimatedDuration, 'Direct Route');
+                });
+        }
+
+        function updateRouteDisplays(distance, duration, routeType) {
+            const distanceKm = (distance / 1000).toFixed(2);
+            const durationHours = duration / 3600;
+            const hours = Math.floor(durationHours);
+            const minutes = Math.round((durationHours - hours) * 60);
+            
+            // Update main distance display
+            document.getElementById('main-distance').textContent = distanceKm + ' km';
+            document.getElementById('estimated-time').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            document.getElementById('route-type').textContent = routeType;
+            
+            // Show distance display
+            document.getElementById('distance-display').style.display = 'block';
+            
+            // Update navigation info
+            document.getElementById('nav-distance').innerHTML = `
+                <div style="font-size: 32px; font-weight: bold; color: #3498db;">${distanceKm} km</div>
+            `;
+            document.getElementById('nav-instruction').textContent = `Route calculated successfully`;
+            document.getElementById('total-distance').textContent = distanceKm + ' km';
+            document.getElementById('eta-time').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            document.getElementById('current-speed-display').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            
+            // Show navigation info
+            document.getElementById('navigation-info').style.display = 'block';
+            
+            // Update status displays
+            document.getElementById('movement-status').textContent = `Route Ready - ${distanceKm}km`;
+            document.getElementById('movement-status').className = 'movement-status status-moving';
+            document.getElementById('lane-status').textContent = 'Route Active';
+            document.getElementById('lane-status').className = 'status-indicator status-safe';
+            
+            // Update GPS details
+            document.getElementById('current-lat').textContent = fromPosition.name || 'Start Location';
+            document.getElementById('current-lng').textContent = toPosition.name || 'Destination';
+            document.getElementById('current-alt').textContent = distanceKm + ' km';
+            document.getElementById('current-heading').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            document.getElementById('gps-speed').textContent = 'Active';
+            
+            // Update detailed GPS
+            document.getElementById('gps-position').textContent = 'Route calculated successfully';
+            document.getElementById('gps-course').textContent = distanceKm + ' km';
+            document.getElementById('detailed-speed').textContent = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+            document.getElementById('position-accuracy').textContent = routeType;
+            
+            // Update route analysis
+            updateRouteAnalysis(distance, duration);
+            
+            // Update button
+            const button = document.querySelector('.navigate-button');
+            button.innerHTML = 'Route Calculated Successfully';
+            button.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+            
+            isNavigating = true;
+            
+            showLocationStatus(`Route calculated: ${distanceKm}km in ${hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`}`, '#27ae60');
+        }
+
+        let routeAnalysisInterval = null;
+        let currentRouteSegment = 0;
+        let routeSegments = [];
+        let laneChangeAlerts = [];
+
+        function updateRouteAnalysis(distance, duration) {
+            const distanceKm = distance / 1000;
+            const durationHours = duration / 3600;
+            
+            // Clear any existing analysis interval
+            if (routeAnalysisInterval) {
+                clearInterval(routeAnalysisInterval);
+            }
+            
+            // Analyze route segments for lane changes and conditions
+            analyzeRouteSegments();
+            
+            // Update analysis time
+            document.getElementById('analysis-time').textContent = new Date().toLocaleTimeString();
+            
+            // Analyze route quality based on real route data
+            let routeQuality = analyzeRouteQuality(distanceKm, durationHours);
+            let routeColor = getQualityColor(routeQuality);
+            
+            document.getElementById('road-quality').textContent = routeQuality;
+            document.getElementById('road-quality').style.color = routeColor;
+            
+            // Analyze traffic flow (based on actual route duration vs distance)
+            const avgSpeed = distanceKm / durationHours;
+            let trafficFlow = analyzeTrafficFlow(avgSpeed);
+            let trafficColor = getTrafficColor(trafficFlow);
+            
+            document.getElementById('traffic-flow').textContent = trafficFlow;
+            document.getElementById('traffic-flow').style.color = trafficColor;
+            
+            // Calculate efficiency score based on route geometry
+            const efficiency = calculateRouteEfficiency(distance, duration);
+            let efficiencyColor = getEfficiencyColor(efficiency);
+            
+            document.getElementById('safety-score').textContent = `${efficiency}%`;
+            document.getElementById('safety-score').style.color = efficiencyColor;
+            
+            // Update obstacle alerts with real route data
+            updateObstacleAlerts(distanceKm, durationHours, avgSpeed);
+            
+            // Update stats based on route analysis
+            const routeComplexity = calculateRouteComplexity();
+            document.getElementById('hazard-count').textContent = routeComplexity.hazards;
+            document.getElementById('traffic-level').textContent = routeComplexity.trafficLevel;
+            
+            // Update sensor readings
+            document.getElementById('accel-reading').textContent = 'Analyzing';
+            document.getElementById('accel-reading').className = 'sensor-value active';
+            document.getElementById('gps-accuracy-reading').textContent = 'High';
+            document.getElementById('gps-accuracy-reading').className = 'sensor-value active';
+            document.getElementById('movement-pattern').textContent = 'Route Active';
+            document.getElementById('movement-pattern').className = 'sensor-value active';
+            
+            // Start real-time route simulation
+            startRouteSimulation();
+        }
+
+        function analyzeRouteSegments() {
+            if (!routeInfo || !routeInfo.coordinates) return;
+            
+            routeSegments = [];
+            laneChangeAlerts = [];
+            const coords = routeInfo.coordinates;
+            
+            // Analyze route for turns, curves, and potential lane changes
+            for (let i = 1; i < coords.length - 1; i++) {
+                const prev = coords[i - 1];
+                const curr = coords[i];
+                const next = coords[i + 1];
+                
+                // Calculate bearing changes to detect turns
+                const bearing1 = calculateBearing(prev, curr);
+                const bearing2 = calculateBearing(curr, next);
+                const bearingChange = Math.abs(bearing2 - bearing1);
+                
+                // Normalize bearing change
+                const normalizedChange = bearingChange > 180 ? 360 - bearingChange : bearingChange;
+                
+                let segmentType = 'straight';
+                let laneChangeRequired = false;
+                
+                if (normalizedChange > 45) {
+                    segmentType = 'sharp_turn';
+                    laneChangeRequired = true;
+                } else if (normalizedChange > 20) {
+                    segmentType = 'turn';
+                    laneChangeRequired = true;
+                } else if (normalizedChange > 10) {
+                    segmentType = 'curve';
+                    laneChangeRequired = Math.random() > 0.7; // 30% chance
+                }
+                
+                routeSegments.push({
+                    index: i,
+                    coordinates: curr,
+                    type: segmentType,
+                    bearingChange: normalizedChange,
+                    laneChangeRequired: laneChangeRequired,
+                    distance: i * (routeInfo.distance / coords.length)
+                });
+                
+                if (laneChangeRequired) {
+                    laneChangeAlerts.push({
+                        position: i,
+                        type: segmentType,
+                        severity: normalizedChange > 45 ? 'high' : normalizedChange > 20 ? 'medium' : 'low',
+                        message: generateLaneChangeMessage(segmentType, normalizedChange)
+                    });
+                }
+            }
+        }
+
+        function calculateBearing(point1, point2) {
+            const lat1 = point1[1] * Math.PI / 180;
+            const lat2 = point2[1] * Math.PI / 180;
+            const deltaLng = (point2[0] - point1[0]) * Math.PI / 180;
+            
+            const x = Math.sin(deltaLng) * Math.cos(lat2);
+            const y = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
+            
+            return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
+        }
+
+        function generateLaneChangeMessage(segmentType, bearingChange) {
+            const messages = {
+                'sharp_turn': [
+                    'Sharp turn ahead - prepare for lane positioning',
+                    'Significant direction change - check mirrors',
+                    'Major turn approaching - reduce speed'
+                ],
+                'turn': [
+                    'Turn ahead - position in correct lane',
+                    'Direction change coming - signal early',
+                    'Moderate turn - check blind spots'
+                ],
+                'curve': [
+                    'Gentle curve - maintain lane position',
+                    'Road curves ahead - stay centered',
+                    'Slight bend - adjust steering smoothly'
+                ]
+            };
+            
+            const typeMessages = messages[segmentType] || messages['curve'];
+            return typeMessages[Math.floor(Math.random() * typeMessages.length)];
+        }
+
+        function analyzeRouteQuality(distanceKm, durationHours) {
+            const avgSpeed = distanceKm / durationHours;
+            const routeComplexity = routeSegments.filter(s => s.type !== 'straight').length;
+            const complexityRatio = routeComplexity / routeSegments.length;
+            
+            if (avgSpeed > 60 && complexityRatio < 0.2) return 'Excellent Highway';
+            if (avgSpeed > 50 && complexityRatio < 0.3) return 'Good Route';
+            if (avgSpeed > 40 && complexityRatio < 0.4) return 'Mixed Roads';
+            if (avgSpeed > 30) return 'Urban Route';
+            return 'Complex Route';
+        }
+
+        function analyzeTrafficFlow(avgSpeed) {
+            if (avgSpeed > 70) return 'Free Flow';
+            if (avgSpeed > 50) return 'Light Traffic';
+            if (avgSpeed > 35) return 'Moderate Traffic';
+            if (avgSpeed > 20) return 'Heavy Traffic';
+            return 'Congested';
+        }
+
+        function calculateRouteEfficiency(distance, duration) {
+            const distanceKm = distance / 1000;
+            const straightLineDistance = calculateDistance(fromPosition, toPosition) / 1000;
+            const routeEfficiency = (straightLineDistance / distanceKm) * 100;
+            
+            const timeEfficiency = Math.max(0, 100 - ((duration / 3600) / (distanceKm / 60) - 1) * 100);
+            
+            return Math.round((routeEfficiency + timeEfficiency) / 2);
+        }
+
+        function calculateRouteComplexity() {
+            const turns = routeSegments.filter(s => s.type === 'turn' || s.type === 'sharp_turn').length;
+            const curves = routeSegments.filter(s => s.type === 'curve').length;
+            
+            return {
+                hazards: Math.min(turns + Math.floor(curves / 2), 99),
+                trafficLevel: Math.min(Math.ceil((turns * 2 + curves) / 10), 5)
+            };
+        }
+
+        function getQualityColor(quality) {
+            const colorMap = {
+                'Excellent Highway': '#27ae60',
+                'Good Route': '#2ecc71',
+                'Mixed Roads': '#3498db',
+                'Urban Route': '#f39c12',
+                'Complex Route': '#e74c3c'
+            };
+            return colorMap[quality] || '#3498db';
+        }
+
+        function getTrafficColor(traffic) {
+            const colorMap = {
+                'Free Flow': '#27ae60',
+                'Light Traffic': '#2ecc71',
+                'Moderate Traffic': '#f39c12',
+                'Heavy Traffic': '#e67e22',
+                'Congested': '#e74c3c'
+            };
+            return colorMap[traffic] || '#3498db';
+        }
+
+        function getEfficiencyColor(efficiency) {
+            if (efficiency >= 80) return '#27ae60';
+            if (efficiency >= 60) return '#f39c12';
+            return '#e74c3c';
+        }
+
+        function startRouteSimulation() {
+            currentRouteSegment = 0;
+            
+            routeAnalysisInterval = setInterval(() => {
+                if (currentRouteSegment >= routeSegments.length) {
+                    currentRouteSegment = 0; // Loop back to start
+                }
+                
+                const segment = routeSegments[currentRouteSegment];
+                if (segment) {
+                    updateLanePosition(segment);
+                    
+                    // Check for lane change alerts
+                    const alert = laneChangeAlerts.find(a => a.position === segment.index);
+                    if (alert) {
+                        showLaneChangeAlert(alert);
+                    }
+                }
+                
+                currentRouteSegment++;
+            }, 2000); // Update every 2 seconds
+        }
+
+        function updateLanePosition(segment) {
+            const vehicle = document.getElementById('user-vehicle');
+            const laneStatus = document.getElementById('lane-status');
+            
+            // Simulate lane positioning based on route segment
+            let lanePosition = 50; // Center by default
+            let statusText = 'Center Lane';
+            let statusClass = 'status-safe';
+            
+            switch (segment.type) {
+                case 'sharp_turn':
+                    lanePosition = Math.random() > 0.5 ? 25 : 75; // Left or right lane
+                    statusText = 'Turn Lane';
+                    statusClass = 'status-warning';
+                    break;
+                case 'turn':
+                    lanePosition = Math.random() > 0.5 ? 35 : 65; // Slight left or right
+                    statusText = 'Positioning';
+                    statusClass = 'status-warning';
+                    break;
+                case 'curve':
+                    lanePosition = 50 + (Math.random() - 0.5) * 20; // Slight variation
+                    statusText = 'Adjusting';
+                    statusClass = 'status-safe';
+                    break;
+                default:
+                    lanePosition = 50;
+                    statusText = 'Center Lane';
+                    statusClass = 'status-safe';
+            }
+            
+            // Update vehicle position
+            vehicle.style.left = `${lanePosition}%`;
+            
+            // Update lane status
+            laneStatus.textContent = statusText;
+            laneStatus.className = `status-indicator ${statusClass}`;
+            
+            // Update movement status
+            const movementStatus = document.getElementById('movement-status');
+            movementStatus.textContent = `Navigating - ${segment.type.replace('_', ' ')}`;
+            movementStatus.className = segment.laneChangeRequired ? 
+                'movement-status status-warning' : 'movement-status status-moving';
+        }
+
+        function showLaneChangeAlert(alert) {
+            // Create alert notification
+            const alertDiv = document.createElement('div');
+            alertDiv.innerHTML = `
+                <div style="position: fixed; top: 100px; right: 20px; background: ${getSeverityColor(alert.severity)}; color: white; padding: 15px 25px; border-radius: 12px; font-weight: 600; z-index: 9999; box-shadow: 0 6px 20px rgba(0,0,0,0.3); border-left: 4px solid white; animation: slideInRight 0.3s ease;">
+                    <div style="font-size: 16px; margin-bottom: 5px;">⚠️ Lane Change Alert</div>
+                    <div style="font-size: 14px; opacity: 0.9;">${alert.message}</div>
+                </div>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            // Update sensor readings to show alert
+            document.getElementById('accel-reading').textContent = 'Lane Change';
+            document.getElementById('accel-reading').className = 'sensor-value warning';
+            
+            // Remove alert after 4 seconds
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.style.animation = 'slideOutRight 0.3s ease';
+                    setTimeout(() => {
+                        if (alertDiv.parentElement) {
+                            document.body.removeChild(alertDiv);
+                        }
+                    }, 300);
+                }
+                
+                // Reset sensor reading
+                document.getElementById('accel-reading').textContent = 'Monitoring';
+                document.getElementById('accel-reading').className = 'sensor-value active';
+            }, 4000);
+            
+            // Add CSS animations if not already present
+            if (!document.getElementById('lane-animations')) {
+                const style = document.createElement('style');
+                style.id = 'lane-animations';
+                style.textContent = `
+                    @keyframes slideInRight {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOutRight {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(100%); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        function getSeverityColor(severity) {
+            const colors = {
+                'high': '#e74c3c',
+                'medium': '#f39c12',
+                'low': '#3498db'
+            };
+            return colors[severity] || '#3498db';
+        }
+
+        function updateObstacleAlerts(distanceKm, durationHours) {
+            // Construction zones (estimate based on distance)
+            const constructionAlert = document.getElementById('obstacle-1');
+            if (distanceKm > 50) {
+                constructionAlert.querySelector('.alert-title').textContent = 'Possible Construction';
+                constructionAlert.querySelector('.alert-distance').textContent = 'Long route - check for roadwork';
+                constructionAlert.style.borderLeftColor = '#f39c12';
+            } else {
+                constructionAlert.querySelector('.alert-title').textContent = 'Construction Clear';
+                constructionAlert.querySelector('.alert-distance').textContent = 'No major construction expected';
+                constructionAlert.style.borderLeftColor = '#27ae60';
+            }
+            
+            // Traffic analysis
+            const trafficAlert = document.getElementById('obstacle-2');
+            const avgSpeed = distanceKm / durationHours;
+            if (avgSpeed < 40) {
+                trafficAlert.querySelector('.alert-title').textContent = 'Traffic Expected';
+                trafficAlert.querySelector('.alert-distance').textContent = `Average speed: ${avgSpeed.toFixed(0)} km/h`;
+                trafficAlert.style.borderLeftColor = '#e74c3c';
+            } else {
+                trafficAlert.querySelector('.alert-title').textContent = 'Good Traffic Flow';
+                trafficAlert.querySelector('.alert-distance').textContent = `Average speed: ${avgSpeed.toFixed(0)} km/h`;
+                trafficAlert.style.borderLeftColor = '#27ae60';
+            }
+            
+            // Road conditions
+            const roadAlert = document.getElementById('obstacle-3');
+            roadAlert.querySelector('.alert-title').textContent = 'Road Conditions';
+            roadAlert.querySelector('.alert-distance').textContent = 'Standard road conditions expected';
+            roadAlert.style.borderLeftColor = '#3498db';
+        }
+
+        function calculateDistance(pos1, pos2) {
+            const R = 6371e3; // Earth's radius in meters
+            const φ1 = pos1.lat * Math.PI/180;
+            const φ2 = pos2.lat * Math.PI/180;
+            const Δφ = (pos2.lat-pos1.lat) * Math.PI/180;
+            const Δλ = (pos2.lng-pos1.lng) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // Distance in meters
+        }
+
+        function clearRoute() {
+            if (fromMarker) {
+                map.removeLayer(fromMarker);
+                fromMarker = null;
+            }
+            if (toMarker) {
+                map.removeLayer(toMarker);
+                toMarker = null;
+            }
+            if (routePolyline) {
+                map.removeLayer(routePolyline);
+                routePolyline = null;
+            }
+            
+            // Clear route analysis interval
+            if (routeAnalysisInterval) {
+                clearInterval(routeAnalysisInterval);
+                routeAnalysisInterval = null;
+            }
+            
+            // Reset route analysis variables
+            currentRouteSegment = 0;
+            routeSegments = [];
+            laneChangeAlerts = [];
+            
+            // Hide displays
+            document.getElementById('distance-display').style.display = 'none';
+            document.getElementById('navigation-info').style.display = 'none';
+            
+            // Reset button
+            const button = document.querySelector('.navigate-button');
+            button.innerHTML = 'Calculate Route & Distance';
+            button.style.background = 'linear-gradient(135deg, #0B2033, #1E3041)';
+            
+            // Reset lane position and status
+            const vehicle = document.getElementById('user-vehicle');
+            vehicle.style.left = '50%';
+            
+            const laneStatus = document.getElementById('lane-status');
+            laneStatus.textContent = 'Ready';
+            laneStatus.className = 'status-indicator status-safe';
+            
+            // Reset movement status
+            const movementStatus = document.getElementById('movement-status');
+            movementStatus.textContent = 'Ready for Navigation';
+            movementStatus.className = 'movement-status status-stationary';
+            
+            isNavigating = false;
+            routeInfo = null;
+        }
+
+        function showLocationStatus(message, color) {
+            const statusDiv = document.createElement('div');
+            statusDiv.innerHTML = `
+                <div style="position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: ${color}; color: white; padding: 15px 30px; border-radius: 10px; font-weight: 600; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    ${message}
+                </div>
+            `;
+            document.body.appendChild(statusDiv);
+            
+            setTimeout(() => {
+                if (statusDiv.parentElement) {
+                    document.body.removeChild(statusDiv);
+                }
+            }, 3000);
+        }
+
+        // Map control functions
+        function centerOnRoute() {
+            if (fromMarker && toMarker) {
+                const group = new L.featureGroup([fromMarker, toMarker]);
+                if (routePolyline) {
+                    group.addLayer(routePolyline);
+                }
+                map.fitBounds(group.getBounds().pad(0.1));
+            } else {
+                map.setView([20.0, 0.0], 2);
+            }
+        }
+
+        function toggleMapLayer() {
+            if (currentMapLayer === 'street') {
+                // Switch to satellite view
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.TileLayer) {
+                        map.removeLayer(layer);
+                    }
+                });
+                
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '© Esri',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                currentMapLayer = 'satellite';
+            } else {
+                // Switch back to street view
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.TileLayer) {
+                        map.removeLayer(layer);
+                    }
+                });
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                currentMapLayer = 'street';
+            }
+        }
+
+        function zoomIn() {
+            map.zoomIn();
+        }
+
+        function zoomOut() {
+            map.zoomOut();
+        }
+
+        // Initialize when page loads
+        window.onload = function() {
+            initMap();
+            console.log('Professional GPS Navigation System Loaded');
+        };
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97fdb0e525379a81',t:'MTc1Nzk5NzY4MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
